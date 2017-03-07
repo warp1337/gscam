@@ -83,7 +83,8 @@ namespace gscam {
     // Get the image encoding
     nh_private_.param("image_encoding", image_encoding_, sensor_msgs::image_encodings::RGB8);
     if (image_encoding_ != sensor_msgs::image_encodings::RGB8 &&
-        image_encoding_ != sensor_msgs::image_encodings::MONO8 && 
+        image_encoding_ != sensor_msgs::image_encodings::MONO8 &&
+        image_encoding_ != sensor_msgs::image_encodings::YUV422 &&
         image_encoding_ != "jpeg") {
       ROS_FATAL_STREAM("Unsupported image encoding: " + image_encoding_);
     }
@@ -129,9 +130,11 @@ namespace gscam {
     sink_ = gst_element_factory_make("appsink",NULL);
     GstCaps * caps = NULL;
     if (image_encoding_ == sensor_msgs::image_encodings::RGB8) {
-        caps = gst_caps_new_simple("video/x-raw-rgb", NULL); 
+        caps = gst_caps_new_simple("video/x-raw-rgb", NULL);
     } else if (image_encoding_ == sensor_msgs::image_encodings::MONO8) {
         caps = gst_caps_new_simple("video/x-raw-gray", NULL);
+    } else if (image_encoding_ == sensor_msgs::image_encodings::YUV422) {
+        caps = gst_caps_new_simple("video/x-raw-yuv", NULL);
     } else if (image_encoding_ == "jpeg") {
         caps = gst_caps_new_simple("image/jpeg", NULL);
     }
@@ -302,10 +305,19 @@ namespace gscam {
           cinfo_pub_.publish(cinfo);
       } else {
           // Complain if the returned buffer is smaller than we expect
+          if(image_encoding_ == sensor_msgs::image_encodings::RGB8)
+            const unsigned int expected_frame_size = width_ * height_ * 3;
+          else if(image_encoding_ == sensor_msgs::image_encodings::YUV422)
+            const unsigned int expected_frame_size = width_ * height_ * 2;
+          else
+            const unsigned int expected_frame_size = width_ * height_;
+
           const unsigned int expected_frame_size =
               image_encoding_ == sensor_msgs::image_encodings::RGB8
               ? width_ * height_ * 3
-              : width_ * height_;
+              : ((image_encoding_ == sensor_msgs::image_encodings::YUV422) ?
+              width_ * height_ * 2
+              : width_ * height_);
 
           if (buf->size < expected_frame_size) {
               ROS_WARN_STREAM( "GStreamer image buffer underflow: Expected frame to be "
@@ -330,6 +342,8 @@ namespace gscam {
           // we can free the buffer allocated by gstreamer
           if (image_encoding_ == sensor_msgs::image_encodings::RGB8) {
               img->step = width_ * 3;
+          } else if (image_encoding_ == sensor_msgs::image_encodings::YUV422) {
+              img->step = width_ * 2;
           } else {
               img->step = width_;
           }
