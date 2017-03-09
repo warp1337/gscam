@@ -1,0 +1,50 @@
+<launch>
+  <!-- This launchfile should bring up a node that broadcasts a ros image
+       transport on /webcam/image_raw -->
+
+  <!--
+    Launch Pepper stream :
+      JPEG:
+        gst-launch-0.10 -v v4l2src device=/dev/video0 ! 'video/x-raw-yuv,width=640,height=480,framerate=30/1' ! ffmpegcolorspace ! jpegenc ! rtpjpegpay ! udpsink host={PC_HOST} port={PORT_CAMERA_TOP}
+        gst-launch-0.10 -v v4l2src device=/dev/video1 ! 'video/x-raw-yuv,width=640,height=480,framerate=30/1' ! ffmpegcolorspace ! jpegenc ! rtpjpegpay ! udpsink host={PC_HOST} port={PORT_CAMERA_BOTTOM}
+      RAW:
+        gst-launch-0.10 -v v4l2src device=/dev/video1 ! 'video/x-raw-yuv,width=320,height=240,framerate=30/1' ! rtpvrawpay ! udpsink host={PC_HOST} port={PORT_CAMERA_TOP}
+        gst-launch-0.10 -v v4l2src device=/dev/video0 ! 'video/x-raw-yuv,width=320,height=240,framerate=30/1' ! rtpvrawpay ! udpsink host={PC_HOST} port={PORT_CAMERA_BOTTOM}
+  -->
+  <arg name="PORT_CAMERA_TOP" default="3000"/>
+  <arg name="PORT_CAMERA_BOTTOM" default="3001"/>
+
+  <arg name="ENABLE_JPEG_ENCODING" default="true"/> <!-- False is not working -->
+
+  <!-- The GStreamer framerate needs to be an integral fraction -->
+  <arg name="FPS" default="30/1"/>
+  <arg name="PUBLISH_FRAME" default="false"/>
+
+  <node ns="top" name="camera_top" pkg="gscam" type="gscam" output="screen">
+    <param name="camera_name" value="default"/>
+    <param name="camera_info_url" value="package://gscam/launch/uncalibrated_parameters.ini"/>
+    <param if="$(arg ENABLE_JPEG_ENCODING)" name="gscam_config" value=" udpsrc port=$(arg PORT_CAMERA_TOP) ! application/x-rtp, encoding-name=JPEG,payload=26 ! rtpjpegdepay ! jpegparse"/>
+    <param unless="$(arg ENABLE_JPEG_ENCODING)" name="gscam_config" value=" udpsrc port=$(arg PORT_CAMERA_TOP) caps = 'application/x-rtp, media=(string)video, encoding-name=(string)RAW, sampling=(string)YCbCr-4:2:0, depth=(string)8, width=(string)320, height=(string)240' ! rtpvrawdepay ! ffmpegcolorspace"/>
+    <param if="$(arg ENABLE_JPEG_ENCODING)" name="image_encoding" value="jpeg"/>
+    <!-- <param unless="$(arg ENABLE_JPEG_ENCODING)" name="image_encoding" value="yuv422"/> -->
+    <!-- <param name="use_gst_timestamps" value="true"/> -->
+    <param name="frame_id" value="/v4l_frame"/>
+    <param name="sync_sink" value="false"/>
+  </node>
+
+  <node ns="bottom" name="camera_bottom" pkg="gscam" type="gscam" output="screen">
+    <param name="camera_name" value="default"/>
+    <param name="camera_info_url" value="package://gscam/launch/uncalibrated_parameters.ini"/>
+    <param if="$(arg ENABLE_JPEG_ENCODING)" name="gscam_config" value=" udpsrc port=$(arg PORT_CAMERA_BOTTOM) ! application/x-rtp, encoding-name=JPEG,payload=26 ! rtpjpegdepay ! jpegparse"/>
+    <param unless="$(arg ENABLE_JPEG_ENCODING)" name="gscam_config" value=" udpsrc port=$(arg PORT_CAMERA_BOTTOM) caps = 'application/x-rtp, media=(string)video, encoding-name=(string)RAW, sampling=(string)YCbCr-4:2:0, depth=(string)8, width=(string)320, height=(string)240' ! rtpvrawdepay ! ffmpegcolorspace"/>
+    <param if="$(arg ENABLE_JPEG_ENCODING)" name="image_encoding" value="jpeg"/>
+    <!-- <param unless="$(arg ENABLE_JPEG_ENCODING)" name="image_encoding" value="yuv422"/> -->
+    <!-- <param name="use_gst_timestamps" value="true"/> -->
+    <param name="frame_id" value="/v4l_frame"/>
+    <param name="sync_sink" value="false"/>
+  </node>
+
+  <node name="republish_top" type="republish" pkg="image_transport" output="screen" args="compressed in:=/top/camera/image_raw raw out:=/top/camera/image_raw" />
+  <node name="republish_bottom" type="republish" pkg="image_transport" output="screen" args="compressed in:=/bottom/camera/image_raw raw out:=/bottom/camera/image_raw" />
+  <node if="$(arg PUBLISH_FRAME)" name="v4l_transform" pkg="tf" type="static_transform_publisher" args="1 2 3 0 -3.141 0 /world /v4l_frame 10"/>
+</launch>
