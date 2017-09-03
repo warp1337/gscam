@@ -90,12 +90,13 @@ else()
     DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
     )
 
-  install(FILES
-    examples/v4l.launch
-    examples/gscam_nodelet.launch
-    examples/nodelet_pipeline.launch
-    DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
-    )
+  # Examples folder does not exist in dev branch
+  #install(FILES
+  #  examples/v4l.launch
+  #  examples/gscam_nodelet.launch
+  #  examples/nodelet_pipeline.launch
+  #  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
+  #  )
 
   # Interim compatibility
   # Remove this in the next release
